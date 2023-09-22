@@ -11,6 +11,7 @@ from typing import Dict, Optional, Tuple  # noqa: F401
 import psycopg
 from cachetools import TTLCache
 from psycopg.rows import dict_row
+from psycopg_pool import PoolTimeout
 from six import PY2
 
 from datadog_checks.postgres.connections import MultiDatabaseConnectionPool
@@ -529,7 +530,7 @@ class PostgresStatementSamples(DBMAsyncJob):
         try:
             with self.db_pool.get_connection(dbname, ttl_ms=self._conn_ttl_ms):
                 pass
-        except psycopg.OperationalError as e:
+        except (psycopg.OperationalError, PoolTimeout) as e:
             self._log.warning(
                 "cannot collect execution plans due to failed DB connection to dbname=%s: %s", dbname, repr(e)
             )

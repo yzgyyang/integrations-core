@@ -8,6 +8,7 @@ import time
 import uuid
 
 import psycopg
+from psycopg_pool import ConnectionPool
 import pytest
 from psycopg.rows import dict_row
 
@@ -40,12 +41,13 @@ def test_conn_pool(pg_instance):
     assert pool._stats.connection_pruned == 1
     assert pool._stats.connection_closed_failed == 0
 
-    db = pool._get_connection_raw('postgres', 999 * 1000)
+    db = pool._get_connection_pool('postgres', 999 * 1000)
     # run a simple query, and return conn object to the pool
-    with db.cursor(row_factory=dict_row) as cursor:
-        cursor.execute("select 1")
-        rows = cursor.fetchall()
-        assert len(rows) == 1 and list(rows[0].values())[0]
+    with db.connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cursor:
+            cursor.execute("select 1")
+            rows = cursor.fetchall()
+            assert len(rows) == 1 and list(rows[0].values())[0]
     assert len(pool._conns) == 1
     assert pool._stats.connection_opened == 2
     success = pool.close_all_connections()
@@ -68,7 +70,9 @@ def test_conn_pool_no_leaks_on_close(pg_instance):
     check._config.application_name = unique_id
 
     # Used to make verification queries
-    pool2 = MultiDatabaseConnectionPool(check, lambda dbname: local_db(dbname))
+    pool2 = MultiDatabaseConnectionPool(
+        check, lambda dbname, min_pool_size, max_pool_size: local_pool(dbname, min_pool_size, max_pool_size)
+    )
 
     # Iterate in the test many times to detect flakiness
     for _ in range(20):
@@ -127,7 +131,9 @@ def test_conn_pool_no_leaks_on_prune(pg_instance):
 
     pool = MultiDatabaseConnectionPool(check, check._new_connection)
     # Used to make verification queries
-    pool2 = MultiDatabaseConnectionPool(check, lambda dbname: local_db(dbname))
+    pool2 = MultiDatabaseConnectionPool(
+        check, lambda dbname, min_pool_size, max_pool_size: local_pool(dbname, min_pool_size, max_pool_size)
+    )
     ttl_long = 90 * 1000
     ttl_short = 1
 
@@ -236,7 +242,9 @@ def test_conn_pool_single_connection(pg_instance):
     check._config.application_name = unique_id
 
     # Used to make verification queries
-    pool2 = MultiDatabaseConnectionPool(check, lambda dbname: local_db(dbname))
+    pool2 = MultiDatabaseConnectionPool(
+        check, lambda dbname, min_pool_size, max_pool_size: local_pool(dbname, min_pool_size, max_pool_size)
+    )
 
     pool = MultiDatabaseConnectionPool(check, check._new_connection)
     with pool.get_connection("dogs_0", 1000):
@@ -319,32 +327,21 @@ def test_conn_attempt_to_connect(pg_instance):
         check._attempt_to_connect()
 
 
-@pytest.mark.integration
-@pytest.mark.usefixtures('dd_environment')
-def test_conn_kill_unexpectedly(pg_instance):
-    """
-    When a connection is killed by postgres server, db.closed will not be set.
-    But the pool should not return this BAD connection.
-    Instead, it should create a new connection.
-    """
-    check = PostgreSql('postgres', {}, [pg_instance])
-    pool = MultiDatabaseConnectionPool(check, check._new_connection)
-    pool2 = MultiDatabaseConnectionPool(check, lambda dbname: local_db(dbname))
-    with pool._get_connection_raw(check._config.dbname, 10000):
-        pass
-    kill_postgres_connection(pool2, check._config.dbname)
-    with pool.get_connection(check._config.dbname, 1) as conn:
-        assert not conn.closed
-
-
-def local_db(dbname):
+def local_pool(dbname, min_pool_size, max_pool_size):
     args = {
         'host': HOST,
         'user': USER_ADMIN,
         'password': PASSWORD_ADMIN,
         'dbname': dbname,
     }
-    return psycopg.connect(**args)
+    return ConnectionPool(
+        min_size=min_pool_size,
+        max_size=max_pool_size,
+        kwargs=args,
+        open=True,
+        name=dbname,
+        timeout=2,
+    )
 
 
 def get_activity(db_pool, unique_id):

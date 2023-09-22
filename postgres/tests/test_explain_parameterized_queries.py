@@ -76,10 +76,11 @@ def test_explain_parameterized_queries_generic_params(integration_check, dbm_ins
 
     explain_param_queries = check.statement_samples._explain_parameterized_queries
     conn = check._new_connection(DB_NAME)
-    assert explain_param_queries._create_prepared_statement(conn, query, query, query_signature) is True
-    assert expected_generic_values == explain_param_queries._get_number_of_parameters_for_prepared_statement(
-        conn, query_signature
-    )
+    with check._new_connection(DB_NAME).connection() as conn:
+        assert explain_param_queries._create_prepared_statement(conn, query, query, query_signature) is True
+        assert expected_generic_values == explain_param_queries._get_number_of_parameters_for_prepared_statement(
+            conn, query_signature
+        )
 
 
 @pytest.mark.parametrize(
