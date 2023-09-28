@@ -403,7 +403,6 @@ class PostgreSql(AgentCheck):
         except psycopg.errors.FeatureNotSupported as e:
             # This happens for example when trying to get replication metrics from readers in Aurora. Let's ignore it.
             log_func(e)
-            self.db.rollback()
             self.log.debug("Disabling replication metrics")
             self.is_aurora = False
             self.metrics_cache.replication_metrics = {}
@@ -414,22 +413,20 @@ class PostgreSql(AgentCheck):
                 "A reattempt to identify the right version will happen on next agent run." % self.version
             )
             self._clean_state()
-            self.db.rollback()
         except (psycopg.ProgrammingError, psycopg.errors.QueryCanceled) as e:
             log_func("Not all metrics may be available: %s" % str(e))
-            self.db.rollback()
 
         if not results:
             return None
 
         if is_custom_metrics and len(results) > MAX_CUSTOM_RESULTS:
-            self.warning(
+            self.log.debug(
                 "Query: %s returned more than %s results (%s). Truncating", query, MAX_CUSTOM_RESULTS, len(results)
             )
             results = results[:MAX_CUSTOM_RESULTS]
 
         if is_relations and len(results) > self._config.max_relations:
-            self.warning(
+            self.log.debug(
                 "Query: %s returned more than %s results (%s). "
                 "Truncating. You can edit this limit by setting the `max_relations` config option",
                 query,
@@ -927,8 +924,6 @@ class PostgreSql(AgentCheck):
         except Exception as e:
             self.log.exception("Unable to collect postgres metrics.")
             self._clean_state()
-            if self.db:
-                self.db_pool._commit_or_rollback(self.db)
             self.db = None
             message = u'Error establishing connection to postgres://{}:{}/{}, error is {}'.format(
                 self._config.host, self._config.port, self._config.dbname, str(e)

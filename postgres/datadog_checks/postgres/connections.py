@@ -28,12 +28,14 @@ class ConnectionInfo:
         deadline: int,
         active: bool,
         last_accessed: int,
+        thread: threading.Thread,
         persistent: bool,
     ):
         self.connection = connection
         self.deadline = deadline
         self.active = active
         self.last_accessed = last_accessed
+        self.thread = thread
         self.persistent = persistent
 
 
@@ -123,7 +125,6 @@ class MultiDatabaseConnectionPool(object):
             # if already in pool, retain persistence status
             persistent = conn.persistent
 
-        self._commit_or_rollback(db)
         deadline = datetime.datetime.now() + datetime.timedelta(milliseconds=ttl_ms)
         self._conns[dbname] = ConnectionInfo(
             connection=db,
@@ -143,14 +144,27 @@ class MultiDatabaseConnectionPool(object):
         Blocks until a connection can be added to the pool,
         and optionally takes a timeout in seconds.
         """
-        db = self._get_connection_raw(dbname=dbname, ttl_ms=ttl_ms, timeout=timeout, persistent=persistent)
-        yield db
+        interrupted_error_occurred = False
+
+        db = self._get_connection_raw(dbname, ttl_ms, timeout, startup_fn, persistent)
         try:
-            self._commit_or_rollback(db)
-            self._conns[dbname].active = False
-        except KeyError:
-            # if self._get_connection_raw hit an exception, self._conns[dbname] didn't get populated
-            pass
+            yield db
+        except InterruptedError:
+            # if the thread is interrupted, we don't want to mark the connection as inactive
+            # instead we want to take it out of the pool so it can be closed
+            interrupted_error_occurred = True
+            self._terminate_connection_unsafe(dbname)
+            raise
+        else:
+            if not interrupted_error_occurred:
+                if db.broken:
+                    self._terminate_connection_unsafe(dbname)
+                else:
+                    try:
+                        self._conns[dbname].active = False
+                    except KeyError:
+                        # if self._get_connection_raw hit an exception, self._conns[dbname] didn't get populated
+                        pass
 
     def prune_connections(self):
         """
@@ -207,15 +221,7 @@ class MultiDatabaseConnectionPool(object):
 
     def get_main_db(self):
         """
-        Returns a memoized, persistent psycopg connection to `self.dbname`.
+        Returns a persistent psycopg connection to `self.dbname`.
         :return: a psycopg connection
         """
         return self.get_connection(self._config.dbname, self._config.idle_connection_timeout, persistent=True)
-
-    def _commit_or_rollback(self, db: psycopg.Connection):
-        if db.info.transaction_status == psycopg.pq.TransactionStatus.INTRANS:
-            db.commit()
-        elif db.info.transaction_status == psycopg.pq.TransactionStatus.ACTIVE:
-            db.cancel()
-        elif db.info.transaction_status == psycopg.pq.TransactionStatus.INERROR:
-            db.rollback()
