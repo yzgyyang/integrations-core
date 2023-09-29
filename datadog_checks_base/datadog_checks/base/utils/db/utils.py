@@ -124,11 +124,16 @@ class ConstantRateLimiter:
         """
         Sleeps long enough to enforce the rate limit
         """
+        now = time.time()
         elapsed_s = time.time() - self.last_event
         sleep_amount = max(self.period_s - elapsed_s, 0)
-        print("sleeping for {}".format(sleep_amount))
+        print("sleep_amount {}".format(sleep_amount))
+        print("elapsed_s {}".format(elapsed_s))
+        print("self.period_s {}".format(self.period_s))
+        print("self.last_event {}".format(self.last_event))
         time.sleep(sleep_amount)
         self.last_event = time.time()
+        print("finished sleep after {}".format(now - time.time()))
 
 
 class RateLimitingTTLCache(TTLCache):
