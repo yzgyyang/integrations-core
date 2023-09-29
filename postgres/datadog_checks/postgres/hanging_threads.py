@@ -85,7 +85,7 @@ def monitor(seconds_frozen, test_interval):
                 # If the thread was hanging then report awaked thread.
                 if thread_id in hanging_threads:
                     hanging_threads.remove(thread_id)
-                    if "ddtrace.profiling" not in thread_data['name']:
+                    if "ddtrace" not in thread_data['name']:
                         log_awaked_thread(thread_data)
             else:
                 # If stack is not changed then keep old time.
@@ -96,7 +96,7 @@ def monitor(seconds_frozen, test_interval):
                         last_change_time < then):
                     # Gotcha!
                     hanging_threads.add(thread_id)
-                    if "ddtrace.profiling" not in thread_data['name']:
+                    if "ddtrace" not in thread_data['name']:
                         # Report the hanged thread.
                         log_hanged_thread(thread_data, frame)
         old_threads = new_threads
