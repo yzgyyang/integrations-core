@@ -182,6 +182,7 @@ class PostgresStatementMetrics(DBMAsyncJob):
         with self.db_pool.get_main_db() as conn:
             with conn.cursor() as cursor:
                 self._execute_query(cursor, query, params=())
+                cursor.fetchall()
                 col_names = [desc[0] for desc in cursor.description] if cursor.description else []
                 self._stat_column_cache = col_names
                 return col_names
