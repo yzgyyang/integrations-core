@@ -937,7 +937,6 @@ class PostgreSql(AgentCheck):
             )
             raise e
         else:
-            self.db_pool._commit_or_rollback(self.db)
             self.service_check(
                 self.SERVICE_CHECK_NAME,
                 AgentCheck.OK,

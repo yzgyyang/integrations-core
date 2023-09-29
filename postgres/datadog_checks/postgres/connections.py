@@ -28,14 +28,12 @@ class ConnectionInfo:
         deadline: int,
         active: bool,
         last_accessed: int,
-        thread: threading.Thread,
         persistent: bool,
     ):
         self.connection = connection
         self.deadline = deadline
         self.active = active
         self.last_accessed = last_accessed
-        self.thread = thread
         self.persistent = persistent
 
 
@@ -146,7 +144,7 @@ class MultiDatabaseConnectionPool(object):
         """
         interrupted_error_occurred = False
 
-        db = self._get_connection_raw(dbname, ttl_ms, timeout, startup_fn, persistent)
+        db = self._get_connection_raw(dbname, ttl_ms, timeout, persistent=persistent)
         try:
             yield db
         except InterruptedError:
