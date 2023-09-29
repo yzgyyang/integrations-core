@@ -10,7 +10,7 @@ import psycopg
 from cachetools import TTLCache
 from psycopg.rows import dict_row
 from six import iteritems
-from hanging_threads import start_monitoring
+from datadog_checks.postgres.hanging_threads import start_monitoring
 from datadog_checks.base import is_affirmative
 
 from datadog_checks.base import AgentCheck

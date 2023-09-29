@@ -454,14 +454,22 @@ class PostgresStatementSamples(DBMAsyncJob):
         if self._explain_plan_coll_enabled:
             event_samples = self._collect_plans(rows)
             for e in event_samples:
-                self._check.database_monitoring_query_sample(json.dumps(e, default=default_json_event_encoding))
+                sample_payload = json.dumps(e, default=default_json_event_encoding)
+                self._check.database_monitoring_query_sample(sample_payload)
                 submitted_count += 1
+                self._check.histogram(
+                    "dd.postgres.payload_size_bytes.samples", len(sample_payload), tags=self.tags
+                )
 
         if self._report_activity_event():
             active_connections = self._get_active_connections()
             activity_event = self._create_activity_event(rows, active_connections)
+            payload = json.dumps(activity_event, default=default_json_event_encoding)
             self._check.database_monitoring_query_activity(
-                json.dumps(activity_event, default=default_json_event_encoding)
+                payload
+            )
+            self._check.histogram(
+                "dd.postgres.payload_size_bytes.activity", len(payload), tags=self.tags
             )
             self._check.histogram(
                 "dd.postgres.collect_activity_snapshot.time", (time.time() - start_time) * 1000, tags=self.tags

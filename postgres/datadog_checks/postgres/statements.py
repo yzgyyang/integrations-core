@@ -214,7 +214,11 @@ class PostgresStatementMetrics(DBMAsyncJob):
                 'ddagentversion': datadog_agent.get_version(),
                 "ddagenthostname": self._check.agent_hostname,
             }
-            self._check.database_monitoring_query_metrics(json.dumps(payload, default=default_json_event_encoding))
+            statements_payload = json.dumps(payload, default=default_json_event_encoding)
+            self._check.database_monitoring_query_metrics(statements_payload)
+            self._check.histogram(
+                "dd.postgres.payload_size_bytes.metrics", len(statements_payload), tags=self.tags
+            )
         except Exception:
             self._log.exception('Unable to collect statement metrics due to an error')
             return []

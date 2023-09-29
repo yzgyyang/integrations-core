@@ -241,7 +241,11 @@ class PostgresMetadata(DBMAsyncJob):
                 "cloud_metadata": self._config.cloud_metadata,
                 "metadata": self._pg_settings_cached,
             }
-            self._check.database_monitoring_metadata(json.dumps(event, default=default_json_event_encoding))
+            payload = json.dumps(event, default=default_json_event_encoding)
+            self._check.database_monitoring_metadata()
+            self._check.histogram(
+                "dd.postgres.payload_size_bytes.settings", len(payload), tags=self.tags
+            )
 
         elapsed_s_schemas = time.time() - self._time_since_last_schemas_query
         if elapsed_s_schemas >= self.schemas_collection_interval and self._collect_schemas_enabled:
@@ -261,6 +265,9 @@ class PostgresMetadata(DBMAsyncJob):
             json_event = json.dumps(event, default=default_json_event_encoding)
             self._log.debug("Reporting the following payload for schema collection: {}".format(json_event))
             self._check.database_monitoring_metadata(json_event)
+            self._check.histogram(
+                "dd.postgres.payload_size_bytes.schemas", len(json_event), tags=self.tags
+            )
 
     def _payload_pg_version(self):
         version = self._check.version
