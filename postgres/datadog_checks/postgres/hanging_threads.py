@@ -91,6 +91,7 @@ def monitor(seconds_frozen, test_interval):
                 # If stack is not changed then keep old time.
                 last_change_time = old_threads[thread_id]['time']
                 thread_data['time'] = last_change_time
+                thread_data['hang_time'] = last_change_time - now
                 # Check if this is a new hanging thread.
                 if (thread_id not in hanging_threads and
                         last_change_time < then):
@@ -113,6 +114,7 @@ def get_current_frames():
             (thread_id, {
                 'frame': thread2list(frame),
                 'time': None,
+                'hang_time': None,
                 'id': thread_id,
                 'name': threads[thread_id].name,
                 'object': threads[thread_id]
@@ -158,7 +160,7 @@ def thread2list(frame):
 
 
 def threadcaption(thread_data):
-    return 'Thread {id} "{name}"'.format(**thread_data)
+    return 'Thread {id} "{name}" for {hang_time} seconds; last change time: {time}'.format(**thread_data)
 
 def log_hanged_thread(thread_data, frame):
     """Print the stack trace of the deadlock after hanging
