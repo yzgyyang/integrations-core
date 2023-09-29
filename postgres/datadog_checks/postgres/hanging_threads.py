@@ -85,19 +85,19 @@ def monitor(seconds_frozen, test_interval):
                 # If the thread was hanging then report awaked thread.
                 if thread_id in hanging_threads:
                     hanging_threads.remove(thread_id)
-                    if "ddtrace" not in thread_data['name']:
+                    if "ddtrace" not in thread_data['name'] and "hanging_threads.py" not in thread_data['frame']:
                         log_awaked_thread(thread_data)
             else:
                 # If stack is not changed then keep old time.
                 last_change_time = old_threads[thread_id]['time']
                 thread_data['time'] = last_change_time
-                thread_data['hang_time'] = last_change_time - now
+                thread_data['hang_time'] = now - last_change_time
                 # Check if this is a new hanging thread.
                 if (thread_id not in hanging_threads and
                         last_change_time < then):
                     # Gotcha!
                     hanging_threads.add(thread_id)
-                    if "ddtrace" not in thread_data['name']:
+                    if "ddtrace" not in thread_data['name'] and "hanging_threads.py" not in thread_data['frame']:
                         # Report the hanged thread.
                         log_hanged_thread(thread_data, frame)
         old_threads = new_threads
@@ -160,7 +160,10 @@ def thread2list(frame):
 
 
 def threadcaption(thread_data):
-    return 'Thread {id} "{name}" for {hang_time} seconds; last change time: {time}'.format(**thread_data)
+    if thread_data['hang_time']:
+        return 'Thread {id} "{name}" for {hang_time} seconds; last change time: {time}'.format(**thread_data)
+    return 'Thread {id} "{name}"; last change time: {time}'.format(**thread_data)
+
 
 def log_hanged_thread(thread_data, frame):
     """Print the stack trace of the deadlock after hanging
