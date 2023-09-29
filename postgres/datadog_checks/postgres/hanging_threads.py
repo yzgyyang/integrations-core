@@ -105,16 +105,21 @@ def get_current_frames():
     further processing.
     """
     threads = {thread.ident: thread for thread in threading.enumerate()}
-    return dict(
-        (thread_id, {
-            'frame': thread2list(frame),
-            'time': None,
-            'id': thread_id,
-            'name': threads[thread_id].name,
-            'object': threads[thread_id]
-        })
-        for thread_id, frame in sys._current_frames().items()
-    )
+    res = {}
+    try:
+        res = dict(
+            (thread_id, {
+                'frame': thread2list(frame),
+                'time': None,
+                'id': thread_id,
+                'name': threads[thread_id].name,
+                'object': threads[thread_id]
+            })
+            for thread_id, frame in sys._current_frames().items()
+        )
+    except KeyError:
+        pass
+    return res
 
 
 def frame2string(frame):
