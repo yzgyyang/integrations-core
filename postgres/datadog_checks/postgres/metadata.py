@@ -244,7 +244,7 @@ class PostgresMetadata(DBMAsyncJob):
             payload = json.dumps(event, default=default_json_event_encoding)
             self._check.database_monitoring_metadata()
             self._check.histogram(
-                "dd.postgres.payload_size_bytes.settings", len(payload), tags=self.tags
+                "dd.postgres.payload_size_bytes", len(payload), tags=self.tags + ["type:settings"]
             )
 
         elapsed_s_schemas = time.time() - self._time_since_last_schemas_query
@@ -266,7 +266,7 @@ class PostgresMetadata(DBMAsyncJob):
             self._log.debug("Reporting the following payload for schema collection: {}".format(json_event))
             self._check.database_monitoring_metadata(json_event)
             self._check.histogram(
-                "dd.postgres.payload_size_bytes.schemas", len(json_event), tags=self.tags
+                "dd.postgres.payload_size_bytes", len(json_event), tags=self.tags + ["type:schemas"]
             )
 
     def _payload_pg_version(self):

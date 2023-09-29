@@ -218,7 +218,7 @@ class PostgresStatementMetrics(DBMAsyncJob):
             statements_payload = json.dumps(payload, default=default_json_event_encoding)
             self._check.database_monitoring_query_metrics(statements_payload)
             self._check.histogram(
-                "dd.postgres.payload_size_bytes.metrics", len(statements_payload), tags=self.tags
+                "dd.postgres.payload_size_bytes", len(statements_payload), tags=self.tags + ["type:metrics"]
             )
         except Exception:
             self._log.exception('Unable to collect statement metrics due to an error')

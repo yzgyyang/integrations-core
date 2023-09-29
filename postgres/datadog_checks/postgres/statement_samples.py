@@ -459,7 +459,7 @@ class PostgresStatementSamples(DBMAsyncJob):
                 self._check.database_monitoring_query_sample(sample_payload)
                 submitted_count += 1
                 self._check.histogram(
-                    "dd.postgres.payload_size_bytes.samples", len(sample_payload), tags=self.tags
+                    "dd.postgres.payload_size_bytes", len(sample_payload), tags=self.tags + ["type:samples"]
                 )
 
         if self._report_activity_event():
@@ -470,7 +470,7 @@ class PostgresStatementSamples(DBMAsyncJob):
                 payload
             )
             self._check.histogram(
-                "dd.postgres.payload_size_bytes.activity", len(payload), tags=self.tags
+                "dd.postgres.payload_size_bytes", len(payload), tags=self.tags + ["type:activity"]
             )
             self._check.histogram(
                 "dd.postgres.collect_activity_snapshot.time", (time.time() - start_time) * 1000, tags=self.tags
