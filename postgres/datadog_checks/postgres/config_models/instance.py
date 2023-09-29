@@ -79,6 +79,15 @@ class Gcp(BaseModel):
     project_id: Optional[str] = None
 
 
+class HangingThreads(BaseModel):
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        frozen=True,
+    )
+    enabled: Optional[bool] = None
+    log_after_seconds: Optional[float] = None
+
+
 class ManagedIdentity(BaseModel):
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
@@ -188,6 +197,7 @@ class InstanceConfig(BaseModel):
     disable_generic_tags: Optional[bool] = None
     empty_default_hostname: Optional[bool] = None
     gcp: Optional[Gcp] = None
+    hanging_threads: Optional[HangingThreads] = None
     host: str
     idle_connection_timeout: Optional[int] = None
     ignore_databases: Optional[tuple[str, ...]] = None

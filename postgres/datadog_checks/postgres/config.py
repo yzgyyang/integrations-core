@@ -89,6 +89,7 @@ class PostgresConfig:
         self.custom_metrics = self._get_custom_metrics(instance.get('custom_metrics', []))
         self.max_relations = int(instance.get('max_relations', 300))
         self.min_collection_interval = instance.get('min_collection_interval', 15)
+        self.detect_hanging_threads = instance.get('hanging_threads', {})
         # database monitoring adds additional telemetry for query metrics & samples
         self.dbm_enabled = is_affirmative(instance.get('dbm', instance.get('deep_database_monitoring', False)))
         self.full_statement_text_cache_max_size = instance.get('full_statement_text_cache_max_size', 10000)

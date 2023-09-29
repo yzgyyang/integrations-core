@@ -28,7 +28,8 @@ class VersionUtils(object):
     def get_raw_version(db):
         with db.cursor() as cursor:
             cursor.execute('SHOW SERVER_VERSION;')
-            raw_version = cursor.fetchone()[0]
+            raw_version = cursor.fetchall()[0][0]
+            print(raw_version)
             return raw_version
 
     def is_aurora(self, db):

@@ -302,6 +302,20 @@ instances:
     #
     # pg_stat_statements_view: show_pg_stat_statements()
 
+    ## test to be able to detect when threads are hanging in the integrations
+    #
+    # hanging_threads:
+
+        ## @param enabled - boolean - optional - default: false
+        ## Enable collection of query metrics. Requires `dbm: true`.
+        #
+        # enabled: false
+
+        ## @param log_after_seconds - number - optional - default: 30
+        ## Set the amount of time the thread has to be hanging before we log a statement
+        #
+        # log_after_seconds: 30
+
     ## Configure collection of query metrics
     #
     # query_metrics:

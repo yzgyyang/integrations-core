@@ -10,6 +10,8 @@ import psycopg
 from cachetools import TTLCache
 from psycopg.rows import dict_row
 from six import iteritems
+from hanging_threads import start_monitoring
+from datadog_checks.base import is_affirmative
 
 from datadog_checks.base import AgentCheck
 from datadog_checks.base.utils.db import QueryExecutor
@@ -897,6 +899,9 @@ class PostgreSql(AgentCheck):
         tags = copy.copy(self.tags)
         # Collect metrics
         try:
+            if is_affirmative(self._config.detect_hanging_threads.get('enabled', False)):
+                secs_frozen = self._config.detect_hanging_threads.get('log_after_seconds', 30)
+                start_monitoring(seconds_frozen=secs_frozen)
             # Check version
             self._connect()
             self.load_version()  # We don't want to cache versions between runs to capture minor updates for metadata
