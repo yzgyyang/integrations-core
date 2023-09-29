@@ -126,6 +126,7 @@ class ConstantRateLimiter:
         """
         elapsed_s = time.time() - self.last_event
         sleep_amount = max(self.period_s - elapsed_s, 0)
+        print("sleeping for {}".format(sleep_amount))
         time.sleep(sleep_amount)
         self.last_event = time.time()
 
