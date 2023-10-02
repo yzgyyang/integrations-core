@@ -387,21 +387,6 @@ files:
       value:
         type: string
         example: show_pg_stat_statements()
-    - name: hanging_threads
-      description: test to be able to detect when threads are hanging in the integrations
-      options:
-        - name: enabled
-          description: |
-            Enable collection of query metrics. Requires `dbm: true`.
-          value:
-            type: boolean
-            example: false
-        - name: log_after_seconds
-          description: |
-            Set the amount of time the thread has to be hanging before we log a statement
-          value:
-           type: number
-           example: 30
     - name: query_metrics
       description: Configure collection of query metrics
       options:

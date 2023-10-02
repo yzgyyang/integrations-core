@@ -10,9 +10,6 @@ import psycopg
 from cachetools import TTLCache
 from psycopg.rows import dict_row
 from six import iteritems
-from datadog_checks.postgres.hanging_threads import start_monitoring
-from datadog_checks.base import is_affirmative
-import concurrent.futures
 
 from datadog_checks.base import AgentCheck
 from datadog_checks.base.utils.db import QueryExecutor
@@ -193,11 +190,6 @@ class PostgreSql(AgentCheck):
             cursor.execute(query)
             rows = cursor.fetchall()
             return rows
-
-    def start_monitoring_thread(self):
-        # Define your start_monitoring function here, assuming it's a long-running task
-        secs_frozen = self._config.detect_hanging_threads.get('log_after_seconds', 30)
-        start_monitoring(seconds_frozen=secs_frozen)
 
     @property
     def dynamic_queries(self):
@@ -902,11 +894,6 @@ class PostgreSql(AgentCheck):
         tags = copy.copy(self.tags)
         # Collect metrics
         try:
-            if is_affirmative(self._config.detect_hanging_threads.get('enabled', False)):
-                # Create a ThreadPoolExecutor (you can also use ProcessPoolExecutor)
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    # Submit your function to the executor
-                    executor.submit(self.start_monitoring_thread)
             # Check version
             self._connect()
             self.load_version()  # We don't want to cache versions between runs to capture minor updates for metadata
