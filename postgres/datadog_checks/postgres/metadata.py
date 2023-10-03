@@ -2,7 +2,8 @@
 # All rights reserved
 # Licensed under a 3-clause BSD style license (see LICENSE)
 import time
-from typing import Dict, List, Union  # noqa: F401
+from collections import OrderedDict
+from typing import Dict, List, Union
 
 import psycopg
 from psycopg.rows import dict_row
@@ -242,10 +243,8 @@ class PostgresMetadata(DBMAsyncJob):
                 "metadata": self._pg_settings_cached,
             }
             payload = json.dumps(event, default=default_json_event_encoding)
-            self._check.database_monitoring_metadata()
-            self._check.histogram(
-                "dd.postgres.payload_size_bytes", len(payload), tags=self.tags + ["type:settings"]
-            )
+            self._check.database_monitoring_metadata(payload)
+            self._check.histogram("dd.postgres.payload_size_bytes", len(payload), tags=self.tags + ["type:settings"])
 
         elapsed_s_schemas = time.time() - self._time_since_last_schemas_query
         if elapsed_s_schemas >= self.schemas_collection_interval and self._collect_schemas_enabled:
@@ -265,9 +264,7 @@ class PostgresMetadata(DBMAsyncJob):
             json_event = json.dumps(event, default=default_json_event_encoding)
             self._log.debug("Reporting the following payload for schema collection: {}".format(json_event))
             self._check.database_monitoring_metadata(json_event)
-            self._check.histogram(
-                "dd.postgres.payload_size_bytes", len(json_event), tags=self.tags + ["type:schemas"]
-            )
+            self._check.histogram("dd.postgres.payload_size_bytes", len(json_event), tags=self.tags + ["type:schemas"])
 
     def _payload_pg_version(self):
         version = self._check.version
@@ -311,9 +308,7 @@ class PostgresMetadata(DBMAsyncJob):
         """
         cursor.execute(SCHEMA_QUERY)
         rows = cursor.fetchall()
-        schemas = []
-        for row in rows:
-            schemas.append({"id": str(row['id']), "name": row['name'], "owner": row['owner']})
+        schemas = [{"id": str(row['id']), "name": row['name'], "owner": row['owner']} for row in rows]
         return schemas
 
     def _get_table_info(self, cursor, dbname, schema_id):
@@ -411,42 +406,43 @@ class PostgresMetadata(DBMAsyncJob):
             table_id = table['id']
             this_payload.update({'id': str(table['id'])})
             this_payload.update({'name': name})
-            if table["hasindexes"]:
-                cursor.execute(PG_INDEXES_QUERY.format(tablename=name))
-                rows = cursor.fetchall()
-                idxs = [dict(row) for row in rows]
-                this_payload.update({'indexes': idxs})
-
-            if VersionUtils.transform_version(str(self._check.version))['version.major'] != "9":
-                if table['has_partitions']:
-                    cursor.execute(PARTITION_KEY_QUERY.format(parent=name))
-                    row = cursor.fetchall()[0]
-                    this_payload.update({'partition_key': row['partition_key']})
-
-                    cursor.execute(NUM_PARTITIONS_QUERY.format(parent_oid=table_id))
-                    row = cursor.fetchall()[0]
-                    this_payload.update({'num_partitions': row['num_partitions']})
-
             if table['toast_table'] is not None:
                 this_payload.update({'toast_table': table['toast_table']})
 
-            # Get foreign keys
-            cursor.execute(PG_CHECK_FOR_FOREIGN_KEY.format(oid=table_id))
-            row = cursor.fetchall()[0]
-            if row['count'] > 0:
-                cursor.execute(PG_CONSTRAINTS_QUERY.format(oid=table_id))
+            queries = OrderedDict()
+            if table["hasindexes"]:
+                queries['indexes'] = PG_INDEXES_QUERY.format(tablename=name)
+
+            if VersionUtils.transform_version(str(self._check.version))['version.major'] != "9":
+                if table['has_partitions']:
+                    queries['partition_key'] = PARTITION_KEY_QUERY.format(parent=name)
+                    queries['num_partitions'] = NUM_PARTITIONS_QUERY.format(parent_oid=table_id)
+
+            queries['foreign_keys'] = PG_CONSTRAINTS_QUERY.format(oid=table_id)
+            queries['columns'] = COLUMNS_QUERY.format(oid=table_id)
+
+            cursor.execute(';'.join(queries.values()))
+            for key in queries:
                 rows = cursor.fetchall()
                 if rows:
-                    fks = [dict(row) for row in rows]
-                    this_payload.update({'foreign_keys': fks})
-
-            # Get columns
-            cursor.execute(COLUMNS_QUERY.format(oid=table_id))
-            rows = cursor.fetchall()[:]
-            max_columns = self._config.schemas_metadata_config.get('max_columns', 50)
-            columns = [dict(row) for row in rows][:max_columns]
-            this_payload.update({'columns': columns})
-
+                    if key == 'indexes':
+                        idxs = [dict(row) for row in rows]
+                        this_payload.update({'indexes': idxs})
+                    elif key == 'partition_key':
+                        row = rows[0]
+                        this_payload.update({'partition_key': row['partition_key']})
+                    elif key == 'num_partitions':
+                        row = rows[0]
+                        this_payload.update({'num_partitions': row['num_partitions']})
+                    elif key == 'foreign_keys':
+                        fks = [dict(row) for row in rows]
+                        this_payload.update({'foreign_keys': fks})
+                    elif key == 'columns':
+                        max_columns = self._config.schemas_metadata_config.get('max_columns', 50)
+                        columns = [dict(row) for row in rows][:max_columns]
+                        this_payload.update({'columns': columns})
+                if not cursor.nextset():
+                    break
             table_payloads.append(this_payload)
 
         return table_payloads
