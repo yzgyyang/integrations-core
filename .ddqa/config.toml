@@ -64,6 +64,7 @@ jira_statuses = [
   "Done",
 ]
 github_team = "network-device-monitoring"
+exclude_members = ["leeavital", "heyronhay"]
 
 [teams."Windows Agent"]
 jira_project = "WINA"
