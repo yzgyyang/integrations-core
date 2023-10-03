@@ -93,51 +93,49 @@ WHERE  nspname NOT IN ( 'information_schema', 'pg_catalog' )
 
 PG_INDEXES_QUERY = """
 SELECT indexname AS NAME,
-       indexdef  AS definition
+       indexdef  AS definition,
+       tablename
 FROM   pg_indexes
-WHERE  tablename LIKE '{tablename}';
-"""
-
-PG_CHECK_FOR_FOREIGN_KEY = """
-SELECT count(conname)
-FROM   pg_constraint
-WHERE  contype = 'f'
-       AND conrelid = {oid};
+WHERE  tablename LIKE ANY(%s)
 """
 
 PG_CONSTRAINTS_QUERY = """
 SELECT conname                   AS name,
-       pg_get_constraintdef(oid) AS definition
+       pg_get_constraintdef(oid) AS definition,
+       conrelid
 FROM   pg_constraint
 WHERE  contype = 'f'
-       AND conrelid = {oid};
+       AND conrelid = ANY(%s)
 """
 
 COLUMNS_QUERY = """
 SELECT attname                          AS name,
        Format_type(atttypid, atttypmod) AS data_type,
        NOT attnotnull                   AS nullable,
-       pg_get_expr(adbin, adrelid)      AS default
+       pg_get_expr(adbin, adrelid)      AS default,
+       attrelid
 FROM   pg_attribute
        LEFT JOIN pg_attrdef ad
               ON adrelid = attrelid
                  AND adnum = attnum
-WHERE  attrelid = {oid}
+WHERE  attrelid = ANY(%s)
        AND attnum > 0
-       AND NOT attisdropped;
+       AND NOT attisdropped
 """
 
 PARTITION_KEY_QUERY = """
 SELECT relname,
        pg_get_partkeydef(oid) AS partition_key
 FROM   pg_class
-WHERE  '{parent}' = relname;
+WHERE  relname = ANY(%s)
 """
 
 NUM_PARTITIONS_QUERY = """
-SELECT count(inhrelid :: regclass) AS num_partitions
+SELECT count(inhrelid :: regclass) AS num_partitions,
+       inhparent
 FROM   pg_inherits
-WHERE  inhparent = {parent_oid};
+WHERE  inhparent = ANY(%s)
+GROUP BY inhparent
 """
 
 PARTITION_ACTIVITY_QUERY = """
@@ -399,7 +397,19 @@ class PostgresMetadata(DBMAsyncJob):
             "num_partitions": int (if has partitions)
         """
         tables_info = self._get_table_info(cursor, dbname, schema_id)
-        table_payloads = []
+        table_payloads = {}
+
+        indexes = []
+        partition_keys = []
+        num_partitions = []
+        foreign_keys = []
+        columns = []
+
+        # map table name to id
+        table_name_to_id = {table['name']: table['id'] for table in tables_info}
+
+        # In below loop, we initialize the table_payloads dictionary with the table id as the key
+        # then we format the query params for each query and append them to the params list
         for table in tables_info:
             this_payload = {}
             name = table['name']
@@ -409,43 +419,85 @@ class PostgresMetadata(DBMAsyncJob):
             if table['toast_table'] is not None:
                 this_payload.update({'toast_table': table['toast_table']})
 
-            queries = OrderedDict()
+            table_payloads[table_id] = this_payload
+
             if table["hasindexes"]:
-                queries['indexes'] = PG_INDEXES_QUERY.format(tablename=name)
+                indexes.append(name)
 
             if VersionUtils.transform_version(str(self._check.version))['version.major'] != "9":
                 if table['has_partitions']:
-                    queries['partition_key'] = PARTITION_KEY_QUERY.format(parent=name)
-                    queries['num_partitions'] = NUM_PARTITIONS_QUERY.format(parent_oid=table_id)
+                    partition_keys.append(name)
+                    num_partitions.append(table_id)
 
-            queries['foreign_keys'] = PG_CONSTRAINTS_QUERY.format(oid=table_id)
-            queries['columns'] = COLUMNS_QUERY.format(oid=table_id)
+            foreign_keys.append(table_id)
+            columns.append(table_id)
 
-            cursor.execute(';'.join(queries.values()))
-            for key in queries:
-                rows = cursor.fetchall()
-                if rows:
-                    if key == 'indexes':
-                        idxs = [dict(row) for row in rows]
-                        this_payload.update({'indexes': idxs})
-                    elif key == 'partition_key':
-                        row = rows[0]
-                        this_payload.update({'partition_key': row['partition_key']})
-                    elif key == 'num_partitions':
-                        row = rows[0]
-                        this_payload.update({'num_partitions': row['num_partitions']})
-                    elif key == 'foreign_keys':
-                        fks = [dict(row) for row in rows]
-                        this_payload.update({'foreign_keys': fks})
-                    elif key == 'columns':
-                        max_columns = self._config.schemas_metadata_config.get('max_columns', 50)
-                        columns = [dict(row) for row in rows][:max_columns]
-                        this_payload.update({'columns': columns})
-                if not cursor.nextset():
-                    break
-            table_payloads.append(this_payload)
+        # Construct the list queries and params to be executed
+        queries = OrderedDict()
+        params = []
+        if indexes:
+            queries['indexes'] = PG_INDEXES_QUERY
+            params.append(indexes)
 
-        return table_payloads
+        if partition_keys:
+            queries['partition_key'] = PARTITION_KEY_QUERY
+            params.append(partition_keys)
+
+        if num_partitions:
+            queries['num_partitions'] = NUM_PARTITIONS_QUERY
+            params.append(num_partitions)
+
+        if foreign_keys:
+            queries['foreign_keys'] = PG_CONSTRAINTS_QUERY
+            params.append(foreign_keys)
+
+        if columns:
+            queries['columns'] = COLUMNS_QUERY
+            params.append(columns)
+
+        # Execute the queries and populate the table_payloads dictionary
+        cursor.execute(';'.join(queries.values()), params)
+
+        for key in queries:
+            rows = cursor.fetchall()
+            if rows:
+                if key == 'indexes':
+                    idxs = [dict(row) for row in rows]
+                    for idx in idxs:
+                        table_id = table_name_to_id[idx['tablename']]
+                        if 'indexes' not in table_payloads[table_id]:
+                            table_payloads[table_id]['indexes'] = []
+                        idx.pop('tablename')
+                        table_payloads[table_id]['indexes'].append(idx)
+                elif key == 'partition_key':
+                    for row in rows:
+                        table_id = table_name_to_id[row['relname']]
+                        table_payloads[table_id]['partition_key'] = row['partition_key']
+                elif key == 'num_partitions':
+                    for row in rows:
+                        table_payloads[row['inhparent']]['num_partitions'] = row['num_partitions']
+                elif key == 'foreign_keys':
+                    fks = [dict(row) for row in rows]
+                    for fk in fks:
+                        table_id = fk['conrelid']
+                        if 'foreign_keys' not in table_payloads[table_id]:
+                            table_payloads[table_id]['foreign_keys'] = []
+                        fk.pop('conrelid')
+                        table_payloads[table_id]['foreign_keys'].append(fk)
+                elif key == 'columns':
+                    max_columns = self._config.schemas_metadata_config.get('max_columns', 50)
+                    for row in rows:
+                        table_id = row['attrelid']
+                        if 'columns' not in table_payloads[table_id]:
+                            table_payloads[table_id]['columns'] = []
+                        row.pop('attrelid')
+                        if len(table_payloads[table_id]['columns']) < max_columns:
+                            table_payloads[table_id]['columns'].append(row)
+            if not cursor.nextset():
+                # cursor.nextset() is important to move to the next query result
+                break
+
+        return list(table_payloads.values())
 
     def _collect_metadata_for_database(self, dbname):
         metadata = {}
