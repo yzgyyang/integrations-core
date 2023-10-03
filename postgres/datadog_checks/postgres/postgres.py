@@ -785,7 +785,7 @@ class PostgreSql(AgentCheck):
                     self.db.rollback()
                     continue
 
-                for row in cursor:
+                for row in cursor.fetchall():
                     if not row:
                         self.log.debug("query result for metric_prefix %s: returned an empty result", metric_prefix)
                         continue
