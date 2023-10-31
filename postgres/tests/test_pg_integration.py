@@ -537,6 +537,8 @@ def test_wal_metrics(aggregator, integration_check, pg_instance, is_aurora):
 
     postgres_conn = _get_superconn(pg_instance)
     with postgres_conn.cursor() as cur:
+        # Make sure we're in a stable wal state
+        cur.execute("CHECKPOINT;")
         cur.execute("select count(*) from pg_ls_waldir();")
         expected_num_wals = cur.fetchall()[0][0]
 
