@@ -27,7 +27,6 @@ try:
 except ImportError:
     from ..stubs import datadog_agent
 
-tracemalloc.start()
 
 STATEMENTS_QUERY = """
 SELECT {cols}
@@ -403,6 +402,7 @@ class PostgresStatementMetrics(DBMAsyncJob):
 
     @tracked_method(agent_check_getter=agent_check_getter, track_result_length=True)
     def _collect_metrics_rows(self):
+        tracemalloc.start()
         snapshot1 = tracemalloc.take_snapshot()
 
         self._emit_pg_stat_statements_metrics()
@@ -425,6 +425,7 @@ class PostgresStatementMetrics(DBMAsyncJob):
 
         snapshot2 = tracemalloc.take_snapshot()
         top_stats = snapshot2.compare_to(snapshot1, 'lineno')
+        tracemalloc.stop()
 
         self._log.warning('TOP STATS OF MEMORY USAGE: \n' + '\n'.join([str(a) for a in top_stats]))
 
