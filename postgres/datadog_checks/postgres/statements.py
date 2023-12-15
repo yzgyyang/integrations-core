@@ -5,6 +5,7 @@ from __future__ import unicode_literals
 
 import copy
 import time
+import tracemalloc
 
 import psycopg2
 import psycopg2.extras
@@ -144,6 +145,8 @@ class PostgresStatementMetrics(DBMAsyncJob):
             maxsize=config.full_statement_text_cache_max_size,
             ttl=60 * 60 / config.full_statement_text_samples_per_hour_per_query,
         )
+
+        tracemalloc.start()
 
     def _execute_query(self, cursor, query, params=()):
         try:
@@ -399,6 +402,8 @@ class PostgresStatementMetrics(DBMAsyncJob):
 
     @tracked_method(agent_check_getter=agent_check_getter, track_result_length=True)
     def _collect_metrics_rows(self):
+        snapshot1 = tracemalloc.take_snapshot()
+
         self._emit_pg_stat_statements_metrics()
         self._emit_pg_stat_statements_dealloc()
         rows = self._load_pg_stat_statements()
@@ -416,6 +421,12 @@ class PostgresStatementMetrics(DBMAsyncJob):
             tags=self.tags + self._check._get_debug_tags(),
             hostname=self._check.resolved_hostname,
         )
+
+        snapshot2 = tracemalloc.take_snapshot()
+        top_stats = snapshot2.compare_to(snapshot1, 'lineno')
+        
+        self._log.warning('TOP STATS OF MEMORY USAGE: \n' + '\n'.join(top_stats))
+            
         return rows
 
     def _normalize_queries(self, rows):
