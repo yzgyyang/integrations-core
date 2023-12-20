@@ -101,6 +101,7 @@ select
         ELSE statement_end_offset END
             - statement_start_offset) / 2) + 1) AS statement_text,
     SUBSTRING(qt.text, 1, {proc_char_limit}) as text,
+    OBJECT_NAME(sproc_object_id, dbid) as procedure_name,
     encrypted as is_encrypted,
     s.* from qstats_aggr_split s
     cross apply sys.dm_exec_sql_text(s.plan_handle) qt
