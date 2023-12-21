@@ -306,7 +306,6 @@ class DBMAsyncJob(object):
                 if self._check.should_profile_memory():
                     self._check.profile_memory(
                         self._run_job_rate_limited,
-                        self._check.init_config,
                         namespaces=[self._check.name, self._job_name],
                         extra_tags=self._job_tags,
                     )
