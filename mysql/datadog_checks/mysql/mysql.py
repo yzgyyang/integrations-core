@@ -249,7 +249,7 @@ class MySql(AgentCheck):
                 self.log.debug(f'`events_waits_current` database result is {results}')
                 self.events_wait_current_enabled = self._get_variable_enabled(results, 'events_waits_current')
                 self.log.debug(
-                    '`events_wait_current_enabled` was false. Setting it to %s',
+                    '`events_wait_current_enabled` was None. Setting it to %s',
                     self.events_wait_current_enabled or False,
                 )
         self.log.debug(f'returning `events_wait_current_enabled` {self.events_wait_current_enabled}')
