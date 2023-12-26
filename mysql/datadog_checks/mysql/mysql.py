@@ -206,12 +206,16 @@ class MySql(AgentCheck):
         self._check_events_wait_current_enabled(db)
 
     def _check_performance_schema_enabled(self, db):
+        self.log.debug(f"Checking if `performance_schema` is enabled, currently {self.performance_schema_enabled}")
         if self.performance_schema_enabled is None:
             with closing(db.cursor()) as cursor:
                 cursor.execute("SHOW VARIABLES LIKE 'performance_schema'")
                 results = dict(cursor.fetchall())
+                self.log.debug(f'`performance_schema` database result is {results}')
                 self.performance_schema_enabled = self._get_variable_enabled(results, 'performance_schema')
+                self.log.debug(f'`performance_schema` is {self.performance_schema_enabled}')
 
+        self.log.debug(f'returning `performance_schema_enabled` {self.performance_schema_enabled}')
         return self.performance_schema_enabled
 
     def check_userstat_enabled(self, db):
@@ -230,6 +234,7 @@ class MySql(AgentCheck):
         if not self._check_performance_schema_enabled(db):
             self.log.debug('`performance_schema` is required to enable `events_waits_current`')
             return
+        self.log.debug(f'Checking if `events_waits_current` is enabled, currently {self.events_wait_current_enabled}')
         if self.events_wait_current_enabled is None:
             with closing(db.cursor()) as cursor:
                 cursor.execute(
@@ -241,11 +246,13 @@ class MySql(AgentCheck):
                     """
                 )
                 results = dict(cursor.fetchall())
+                self.log.debug(f'`events_waits_current` database result is {results}')
                 self.events_wait_current_enabled = self._get_variable_enabled(results, 'events_waits_current')
                 self.log.debug(
                     '`events_wait_current_enabled` was false. Setting it to %s',
                     self.events_wait_current_enabled or False,
                 )
+        self.log.debug(f'returning `events_wait_current_enabled` {self.events_wait_current_enabled}')
         return self.events_wait_current_enabled
 
     def resolve_db_host(self):

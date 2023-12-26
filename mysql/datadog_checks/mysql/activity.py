@@ -129,7 +129,13 @@ class MySQLActivity(DBMAsyncJob):
     def run_job(self):
         # type: () -> None
         # Detect a database misconfiguration by checking if `events-waits-current` is enabled.
-        if not self._check.events_wait_current_enabled:
+        if self._check.events_wait_current_enabled is None:
+            self._log.debug(
+                'Query activity and wait event collection is unknown on this host. '
+                'Waiting for the next check run to check again.'
+            )
+            return
+        if self._check.events_wait_current_enabled is False:
             self._check.record_warning(
                 DatabaseConfigurationError.events_waits_current_not_enabled,
                 warning_with_tags(
