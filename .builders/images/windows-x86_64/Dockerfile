@@ -1,6 +1,6 @@
 # escape=`
 
-ARG BASE_IMAGE=mcr.microsoft.com/windows/servercore:ltsc2022
+ARG BASE_IMAGE=mcr.microsoft.com/windows/servercore:ltsc2019
 FROM ${BASE_IMAGE}
 
 SHELL ["cmd", "/S", "/C"]
@@ -14,7 +14,7 @@ RUN curl -SL --output vs_buildtools.exe https://aka.ms/vs/17/release/vs_buildtoo
      --add Microsoft.VisualStudio.Component.VC.CMake.Project `
      --add Microsoft.VisualStudio.Component.VC.Llvm.Clang `
      --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
-     --add Microsoft.VisualStudio.Component.Windows10SDK.20348 `
+     --add Microsoft.VisualStudio.Component.Windows10SDK.18362 `
      --add Microsoft.VisualStudio.ComponentGroup.VC.Tools.142.x86.x64 `
      --add Microsoft.VisualStudio.Workload.VCTools `
      || IF "%ERRORLEVEL%"=="3010" EXIT 0) `
@@ -105,7 +105,10 @@ RUN Get-RemoteFile `
       -Hash '9cea7e1693d051437e78468fd5e915b7b7ed2baf36cdae4936bcf2b760f55daa'; `
     7z x $Env:IBM_MQ_VERSION-IBM-MQC-Redist-Win64.zip -oC:\ibm_mq; `
     Remove-Item $Env:IBM_MQ_VERSION-IBM-MQC-Redist-Win64.zip; `
+    Add-ToPath -Append 'C:\ibm_mq\tools\Lib64'; `
     setx /M MQ_FILE_PATH 'C:\ibm_mq'
+
+RUN setx /M CFLAGS '-std=c99'
 
 # Set up runner
 COPY runner_dependencies.txt C:\runner_dependencies.txt
