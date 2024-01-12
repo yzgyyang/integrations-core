@@ -123,10 +123,11 @@ class PostgreSql(AgentCheck):
         self._clean_state()
         self.check_initializations.append(lambda: RelationsManager.validate_relations_config(self._config.relations))
         self.check_initializations.append(self.set_resolved_hostname_metadata)
+        self.check_initializations.append(self.set_timestamp_metadata)
         # initialize connections if host autodiscovery is disabled or if host autodiscovery is enabled but the host
         # is set in the config
         if not self._config.host_autodiscovery_enabled or (
-            self._config.host_autodiscovery_enabled and self._config.host
+                self._config.host_autodiscovery_enabled and self._config.host
         ):
             self.check_initializations.append(self._connect)
             self.check_initializations.append(self.load_version)
@@ -436,6 +437,9 @@ class PostgreSql(AgentCheck):
         """
         self.set_metadata('resolved_hostname', self._resolved_hostname)
 
+    def set_timestamp_metadata(self):
+        self.set_metadata('timestamp', time())
+
     @property
     def agent_hostname(self):
         # type: () -> str
@@ -539,7 +543,7 @@ class PostgreSql(AgentCheck):
                 )
 
             descriptor_values = row[: len(descriptors)]
-            column_values = row[len(descriptors) :]
+            column_values = row[len(descriptors):]
 
             # build a map of descriptors and their values
             desc_map = {name: value for (_, name), value in zip(descriptors, descriptor_values, strict=False)}
@@ -577,11 +581,11 @@ class PostgreSql(AgentCheck):
         return num_results
 
     def _cache_table_activity(
-        self,
-        dbname: str,
-        tablename: str,
-        metric_name: str,
-        value: int,
+            self,
+            dbname: str,
+            tablename: str,
+            metric_name: str,
+            value: int,
     ):
         db = dbname if self.autodiscovery else self._config.dbname
         if db not in self.metrics_cache.table_activity_metrics.keys():
@@ -844,7 +848,7 @@ class PostgreSql(AgentCheck):
                     try:
                         self.log.debug("Running query: %s", query)
                         with tracked_query(
-                            check=self, operation='custom_queries', tags=['metric_prefix:{}'.format(metric_prefix)]
+                                check=self, operation='custom_queries', tags=['metric_prefix:{}'.format(metric_prefix)]
                         ):
                             cursor.execute(query)
                     except (psycopg2.ProgrammingError, psycopg2.errors.QueryCanceled) as e:
