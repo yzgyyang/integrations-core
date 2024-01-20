@@ -129,6 +129,7 @@ To install the {integration_name} check on your host:
         # Source Type IDs are unique-per-integration integers
         # Based on current timestamp with subtraction to start the IDs at around a few million, allowing room to grow.
         "source_type_id": int(datetime.utcnow().timestamp()) - 1700000000,
+        "display_on_public_website": 'true' if repo_choice == 'extras' else 'false',
     }
     config.update(kwargs)
 
