@@ -227,6 +227,8 @@ class SqlserverActivity(DBMAsyncJob):
         if idle_blocking_session_ids:
             idle_blocking_sessions = self._get_idle_blocking_sessions(cursor, idle_blocking_session_ids)
             rows.extend(idle_blocking_sessions)
+        self._log.debug("loaded sql server activity len(rows)=%s", len(rows))
+        self._log.debug("loaded sql server activity rows=%s", rows)
         return rows
 
     def _normalize_queries_and_filter_rows(self, rows, max_bytes_limit):
