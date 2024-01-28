@@ -12,6 +12,8 @@ from datadog_checks.envoy.metrics import PROMETHEUS_METRICS_MAP
 from .common import (
     CLUSTER_AND_LISTENER_SSL_METRICS,
     CONNECT_STATE_METRIC,
+    CONNECTION_LIMIT_METRICS,
+    CONNECTION_LIMIT_STAT_PREFIX_TAG,
     DEFAULT_INSTANCE,
     LOCAL_RATE_LIMIT_METRICS,
     MOCKED_PROMETHEUS_METRICS,
@@ -46,7 +48,12 @@ def test_check(aggregator, dd_run_check, check, mock_http_response):
 
     dd_run_check(c)
 
-    for metric in MOCKED_PROMETHEUS_METRICS + LOCAL_RATE_LIMIT_METRICS + CLUSTER_AND_LISTENER_SSL_METRICS:
+    for metric in (
+        MOCKED_PROMETHEUS_METRICS
+        + LOCAL_RATE_LIMIT_METRICS
+        + CONNECTION_LIMIT_METRICS
+        + CLUSTER_AND_LISTENER_SSL_METRICS
+    ):
         aggregator.assert_metric("envoy.{}".format(metric))
 
     for metric in CONNECT_STATE_METRIC:
@@ -121,6 +128,40 @@ def test_local_rate_limit_metrics(aggregator, dd_run_check, check, mock_http_res
     for metric in LOCAL_RATE_LIMIT_METRICS:
         aggregator.assert_metric('envoy.{}'.format(metric))
         aggregator.assert_metric_has_tag('envoy.{}'.format(metric), RATE_LIMIT_STAT_PREFIX_TAG)
+
+    aggregator.assert_service_check(
+        "envoy.openmetrics.health", status=AgentCheck.OK, tags=['endpoint:http://localhost:8001/stats/prometheus']
+    )
+
+    aggregator.assert_no_duplicate_metrics()
+    aggregator.assert_metrics_using_metadata(get_metadata_metrics())
+
+
+@requires_py3
+@pytest.mark.parametrize(
+    'fixture_file',
+    [
+        'openmetrics.txt',
+        'openmetrics_1_29.txt',
+    ],
+    ids=[
+        "Envoy < 1.29",
+        "Envoy >= 1.29",
+    ],
+)
+def test_connection_limit_metrics(aggregator, dd_run_check, check, mock_http_response, fixture_file):
+    # Envoy 1.29+ fixed this metric by moving the variable stat_prefix into a label which follows the normal
+    # OpenMetrics convention. However older versions still have the stat_prefix inside the metric name.
+    # https://github.com/envoyproxy/envoy/commit/ea71e737298a03298f478489c181395629a21ce3
+    mock_http_response(file_path=get_fixture_path('./openmetrics/{}'.format(fixture_file)))
+
+    c = check(DEFAULT_INSTANCE)
+
+    dd_run_check(c)
+
+    for metric in CONNECTION_LIMIT_METRICS:
+        aggregator.assert_metric('envoy.{}'.format(metric))
+        aggregator.assert_metric_has_tag('envoy.{}'.format(metric), CONNECTION_LIMIT_STAT_PREFIX_TAG)
 
     aggregator.assert_service_check(
         "envoy.openmetrics.health", status=AgentCheck.OK, tags=['endpoint:http://localhost:8001/stats/prometheus']

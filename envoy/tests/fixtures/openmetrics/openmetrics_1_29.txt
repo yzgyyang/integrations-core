@@ -1,0 +1,4 @@
+# TYPE envoy_connection_limit_active_connections counter
+envoy_connection_limit_active_connections{envoy_connection_limit_prefix="ingress_http"} 0
+# TYPE envoy_connection_limit_limited_connections counter
+envoy_connection_limit_limited_connections{envoy_connection_limit_prefix="ingress_http"} 0

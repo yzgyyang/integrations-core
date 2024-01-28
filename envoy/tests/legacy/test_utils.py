@@ -74,6 +74,20 @@ def test_wildcard_removal_tree():
                 ()
             ),
             "method": "monotonic_count",
+        },
+        "connection_limit.*.active_connections": {
+            "tags": (
+                ("stat_prefix",),
+                ()
+            ),
+            "method": "monotonic_count",
+        },
+        "connection_limit.*.limited_connections": {
+            "tags": (
+                ("stat_prefix",),
+                ()
+            ),
+            "method": "monotonic_count",
         }
     }
 
@@ -84,6 +98,14 @@ def test_wildcard_removal_tree():
         },
         "http_local_rate_limit.enforced": {
             "tags": (("stat_prefix",), (), ()),
+            "method": "monotonic_count",
+        },
+        "connection_limit.active_connections": {
+            "tags": (("stat_prefix",), ()),
+            "method": "monotonic_count",
+        },
+        "connection_limit.limited_connections": {
+            "tags": (("stat_prefix",), ()),
             "method": "monotonic_count",
         }
     }
