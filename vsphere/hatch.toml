@@ -20,6 +20,7 @@ mypy-args = [
 [[envs.default.matrix]]
 python = ["2.7", "3.11"]
 version = ["6.7", "7.0"]
+type = ["lab", "vcsim"]
 
 [envs.default]
 platforms = [
@@ -31,4 +32,8 @@ platforms = [
 matrix.version.env-vars = [
   { key = "VSPHERE_VERSION", value = "6.7.0", if = ["6.7"] },
   { key = "VSPHERE_VERSION", value = "7.0.2", if = ["7.0"] },
+]
+
+matrix.type.env-vars = [
+  { key = "USE_LAB", value = "true", if = ["lab"]},
 ]

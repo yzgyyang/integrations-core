@@ -2,11 +2,14 @@
 # All rights reserved
 # Licensed under Simplified BSD License (see LICENSE)
 import datetime as dt
+import os
 
 import pytest
 from mock import MagicMock, Mock, patch
 from pyVmomi import vim
 
+from datadog_checks.dev import docker_run
+from datadog_checks.dev.fs import get_here
 from datadog_checks.vsphere.constants import DEFAULT_MAX_QUERY_METRICS
 
 from .common import (
@@ -37,10 +40,20 @@ try:
 except ImportError:
     from contextlib2 import ExitStack
 
+USE_LAB = os.environ.get('USE_LAB')
+
 
 @pytest.fixture(scope='session')
 def dd_environment():
-    yield LAB_INSTANCE.copy()
+    if USE_LAB:
+        yield LAB_INSTANCE.copy()
+    else:
+        compose_file = os.path.join(get_here(), 'docker', 'docker-compose.yaml')
+        with docker_run(compose_file, conditions=[]):
+
+            instance = LAB_INSTANCE.copy()
+            instance['host'] = '127.0.0.1:8989'
+            yield instance
 
 
 @pytest.fixture()
