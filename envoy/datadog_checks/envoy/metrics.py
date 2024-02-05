@@ -3935,18 +3935,16 @@ METRICS = {
         ),
         'method': 'monotonic_count',
     },
-    'connection_limit.*.active_connections': {
+    'connection_limit.active_connections': {
         'tags': (
             ('stat_prefix',),
-            (),
             (),
         ),
         'method': 'monotonic_count',
     },
-    'connection_limit.*.limited_connections': {
+    'connection_limit.limited_connections': {
         'tags': (
             ('stat_prefix',),
-            (),
             (),
         ),
         'method': 'monotonic_count',

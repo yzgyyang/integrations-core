@@ -327,7 +327,6 @@ def test_connection_limit_metrics(aggregator, fixture_path, mock_http_response, 
 
     mock_http_response(file_path=fixture_path('./legacy/connection_limit.txt'))
     dd_run_check(c)
-
     for metric in CONNECTION_LIMIT_METRICS:
         for tag in CONNECTION_LIMIT_STAT_PREFIX_TAG:
             aggregator.assert_metric_has_tag(metric, tag, count=1)
