@@ -917,22 +917,22 @@ def test_statement_samples_enable_consumers(dd_run_check, dbm_instance, root_con
 
 
 @pytest.mark.unit
-def test_normalize_queries(dbm_instance):
+def test_normalize_queries(dbm_instance, datadog_agent):
     check = MySql(common.CHECK_NAME, {}, [dbm_instance])
 
     # Test the general case with a valid schema, digest and digest_text
-    assert check._statement_metrics._normalize_queries(
-        [
-            {
-                'schema': 'network',
-                'digest': '44e35cee979ba420eb49a8471f852bbe15b403c89742704817dfbaace0d99dbb',
-                'digest_text': 'SELECT * from table where name = ?',
-                'count': 41,
-                'time': 66721400,
-                'lock_time': 18298000,
-            }
-        ]
-    ) == [
+    rows = [
+        {
+            'schema': 'network',
+            'digest': '44e35cee979ba420eb49a8471f852bbe15b403c89742704817dfbaace0d99dbb',
+            'digest_text': 'SELECT * from table where name = ?',
+            'count': 41,
+            'time': 66721400,
+            'lock_time': 18298000,
+        }
+    ]
+    check._statement_metrics._normalize_queries(rows)
+    assert rows == [
         {
             'digest': '44e35cee979ba420eb49a8471f852bbe15b403c89742704817dfbaace0d99dbb',
             'schema': 'network',
@@ -948,18 +948,18 @@ def test_normalize_queries(dbm_instance):
 
     # Test the case of null values for digest, schema and digest_text (which is what the row created when the table
     # is full returns)
-    assert check._statement_metrics._normalize_queries(
-        [
-            {
-                'digest': None,
-                'schema': None,
-                'digest_text': None,
-                'count': 41,
-                'time': 66721400,
-                'lock_time': 18298000,
-            }
-        ]
-    ) == [
+    rows = [
+        {
+            'digest': None,
+            'schema': None,
+            'digest_text': None,
+            'count': 41,
+            'time': 66721400,
+            'lock_time': 18298000,
+        }
+    ]
+    check._statement_metrics._normalize_queries(rows)
+    assert rows == [
         {
             'digest': None,
             'schema': None,
@@ -972,3 +972,19 @@ def test_normalize_queries(dbm_instance):
             'lock_time': 18298000,
         }
     ]
+
+    # Test normalize queries with obfuscation error. The rows should be removed
+    with mock.patch.object(datadog_agent, 'obfuscate_sql', passthrough=True) as mock_agent:
+        mock_agent.side_effect = Exception('error')
+        rows = [
+            {
+                'schema': 'network',
+                'digest': '44e35cee979ba420eb49a8471f852bbe15b403c89742704817dfbaace0d99dbb',
+                'digest_text': 'SELECT * from table where name = ?',
+                'count': 41,
+                'time': 66721400,
+                'lock_time': 18298000,
+            }
+        ]
+        check._statement_metrics._normalize_queries(rows)
+        assert rows == []

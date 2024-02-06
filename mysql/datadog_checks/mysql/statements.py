@@ -1,7 +1,6 @@
 # (C) Datadog, Inc. 2020-present
 # All rights reserved
 # Licensed under Simplified BSD License (see LICENSE)
-import copy
 import time
 from contextlib import closing
 from operator import attrgetter
@@ -164,7 +163,7 @@ class MySQLStatementMetrics(DBMAsyncJob):
     def _collect_per_statement_metrics(self):
         # type: () -> List[PyMysqlRow]
         monotonic_rows = self._query_summary_per_statement()
-        monotonic_rows = self._normalize_queries(monotonic_rows)
+        self._normalize_queries(monotonic_rows)
         rows = self._state.compute_derivative_rows(monotonic_rows, METRICS_COLUMNS, key=_row_key)
         return rows
 
@@ -205,24 +204,28 @@ class MySQLStatementMetrics(DBMAsyncJob):
         return rows
 
     def _normalize_queries(self, rows):
-        normalized_rows = []
-        for row in rows:
-            normalized_row = dict(copy.copy(row))
-            try:
-                statement = obfuscate_sql_with_metadata(row['digest_text'], self._obfuscate_options)
-                obfuscated_statement = statement['query'] if row['digest_text'] is not None else None
-            except Exception as e:
-                self.log.warning("Failed to obfuscate query=[%s] | err=[%s]", row['digest_text'], e)
-                continue
-
-            normalized_row['digest_text'] = obfuscated_statement
-            normalized_row['query_signature'] = compute_sql_signature(obfuscated_statement)
-            metadata = statement['metadata']
-            normalized_row['dd_tables'] = metadata.get('tables', None)
-            normalized_row['dd_commands'] = metadata.get('commands', None)
-            normalized_rows.append(normalized_row)
-
-        return normalized_rows
+        # use while loop to iterate over the list and remove elements in place
+        # to avoid creating a new list and copying elements
+        idx = 0
+        while idx < len(rows):
+            if not rows[idx]['digest_text']:
+                rows[idx]['query_signature'] = None
+                rows[idx]['dd_tables'] = None
+                rows[idx]['dd_commands'] = None
+            else:
+                try:
+                    statement = obfuscate_sql_with_metadata(rows[idx]['digest_text'], self._obfuscate_options)
+                except Exception as e:
+                    # skip rows with obfuscation errors
+                    self.log.warning("Failed to obfuscate query=[%s] | err=[%s]", rows[idx]['digest_text'], e)
+                    del rows[idx]
+                    continue
+                else:
+                    rows[idx]['digest_text'] = statement['query']
+                    rows[idx]['query_signature'] = compute_sql_signature(statement['query'])
+                    rows[idx]['dd_tables'] = statement['metadata'].get('tables', None)
+                    rows[idx]['dd_commands'] = statement['metadata'].get('commands', None)
+            idx += 1
 
     def _rows_to_fqt_events(self, rows, tags):
         for row in rows:
