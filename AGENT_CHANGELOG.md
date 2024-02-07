@@ -1,3 +1,4 @@
+
 ## Datadog Agent version [7.50.2](https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7502)
 
 * Postgres [15.3.1](https://github.com/DataDog/integrations-core/blob/master/postgres/CHANGELOG.md)
