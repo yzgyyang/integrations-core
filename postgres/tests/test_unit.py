@@ -14,7 +14,7 @@ from six import iteritems
 
 from datadog_checks.postgres import PostgreSql, util
 
-from .common import PORT, check_performance_metrics
+from .common import PORT, check_performance_metrics, _get_expected_tags
 from .utils import requires_over_10
 
 pytestmark = pytest.mark.unit
@@ -279,14 +279,11 @@ def test_replication_tag(aggregator, integration_check, pg_instance):
     REPLICATION_TAG_TEST_METRIC = 'postgresql.db.count'
 
     check = integration_check(pg_instance)
-    expected_tags = pg_instance['tags'] + [
-        'port:{}'.format(PORT),
-        'dd.internal.resource:database_instance:{}'.format(check.resolved_hostname),
-    ]
 
-    # default configuration (no replication)
+    # no replication
+    pg_instance['tag_replication_role'] = False
     check.check(pg_instance)
-    aggregator.assert_metric(REPLICATION_TAG_TEST_METRIC, tags=expected_tags)
+    aggregator.assert_metric(REPLICATION_TAG_TEST_METRIC, tags=_get_expected_tags(check, pg_instance, role=None))
     aggregator.reset()
 
     # role = master
@@ -294,16 +291,14 @@ def test_replication_tag(aggregator, integration_check, pg_instance):
     check = integration_check(pg_instance)
 
     check.check(pg_instance)
-    ROLE_TAG = "replication_role:master"
-    aggregator.assert_metric(REPLICATION_TAG_TEST_METRIC, tags=expected_tags + [ROLE_TAG])
+    aggregator.assert_metric(REPLICATION_TAG_TEST_METRIC, tags=_get_expected_tags(check, pg_instance, role='master'))
     aggregator.reset()
 
     # switchover: master -> standby
-    STANDBY = "standby"
-    check._get_replication_role = MagicMock(return_value=STANDBY)
+    standby_role = "standby"
+    check._get_replication_role = MagicMock(return_value=standby_role)
     check.check(pg_instance)
-    ROLE_TAG = "replication_role:{}".format(STANDBY)
-    aggregator.assert_metric(REPLICATION_TAG_TEST_METRIC, tags=expected_tags + [ROLE_TAG])
+    aggregator.assert_metric(REPLICATION_TAG_TEST_METRIC, tags=_get_expected_tags(check, pg_instance, role=standby_role))
 
 
 def test_query_timeout_connection_string(aggregator, integration_check, pg_instance):

@@ -56,7 +56,7 @@ from .utils import (
 
 CONNECTION_METRICS = ['postgresql.max_connections', 'postgresql.percent_usage_connections']
 
-pytestmark = [pytest.mark.integration, pytest.mark.usefixtures('dd_environment')]
+# pytestmark = [pytest.mark.integration, pytest.mark.usefixtures('dd_environment')]
 
 
 @pytest.mark.parametrize(
@@ -286,7 +286,7 @@ def test_can_connect_service_check(aggregator, integration_check, pg_instance):
     check = integration_check(pg_instance)
 
     check.check(pg_instance)
-    expected_tags = _get_expected_tags(check, pg_instance, db=DB_NAME)
+    expected_tags = _get_expected_tags(check, pg_instance, with_db=True)
     aggregator.assert_service_check('postgres.can_connect', count=1, status=PostgreSql.OK, tags=expected_tags)
     aggregator.reset()
 
@@ -297,7 +297,9 @@ def test_can_connect_service_check(aggregator, integration_check, pg_instance):
     with pytest.raises(AttributeError):
         check.db = mock.MagicMock(side_effect=AttributeError('foo'))
         check.check(pg_instance)
-    aggregator.assert_service_check('postgres.can_connect', count=1, status=PostgreSql.CRITICAL, tags=expected_tags)
+    # Since we can't connect to the host, we can't gather the replication role
+    tags_without_role = _get_expected_tags(check, pg_instance, with_db=True, role=None)
+    aggregator.assert_service_check('postgres.can_connect', count=1, status=PostgreSql.CRITICAL, tags=tags_without_role)
     aggregator.reset()
 
     # Third: connection still open but this time no error
@@ -646,7 +648,7 @@ def test_config_tags_is_unchanged_between_checks(integration_check, pg_instance)
     check = integration_check(pg_instance)
 
     # Put elements in set as we don't care about order, only elements equality
-    expected_tags = set(_get_expected_tags(check, pg_instance, db=DB_NAME))
+    expected_tags = set(_get_expected_tags(check, pg_instance, db=DB_NAME, role=None))
     for _ in range(3):
         check.check(pg_instance)
         assert set(check._config.tags) == expected_tags
@@ -850,7 +852,8 @@ def test_database_instance_cloud_metadata_aws(
         # we only assert the check ran if we don't expect a ConfigurationError
         assert check.cloud_metadata['aws']['managed_authentication']['enabled'] == expected_managed_auth_enabled
 
-        expected_tags = _get_expected_tags(check, pg_instance, db=DB_NAME)
+        role = None if expected_error else 'master'
+        expected_tags = _get_expected_tags(check, pg_instance, with_db=True, role=role)
         if "instance_endpoint" in aws_metadata:
             expected_tags.append("dd.internal.resource:aws_rds_instance:{}".format(aws_metadata["instance_endpoint"]))
 
@@ -998,7 +1001,8 @@ def test_database_instance_cloud_metadata_azure(
         # we only assert the check ran if we don't expect a ConfigurationError
         assert check.cloud_metadata['azure']['managed_authentication']['enabled'] == expected_managed_auth_enabled
 
-        expected_tags = _get_expected_tags(check, pg_instance, db=DB_NAME)
+        role = None if expected_error else 'master'
+        expected_tags = _get_expected_tags(check, pg_instance, with_db=True, role=role)
         if "fully_qualified_domain_name" in azure_metadata:
             expected_tags.append(
                 "dd.internal.resource:azure_postgresql_flexible_server:{}".format(
