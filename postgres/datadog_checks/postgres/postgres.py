@@ -984,7 +984,7 @@ class PostgreSql(AgentCheck):
             self.service_check(
                 self.SERVICE_CHECK_NAME,
                 AgentCheck.OK,
-                tags=self._get_service_check_tags(),
+                tags=self.tags,
             )
             self.log.info("Waiting for remote configuration to push instance configuration")
             return
@@ -1021,7 +1021,7 @@ class PostgreSql(AgentCheck):
             self.service_check(
                 self.SERVICE_CHECK_NAME,
                 AgentCheck.CRITICAL,
-                tags=self._get_service_check_tags(),
+                tags=tags,
                 message=message,
                 hostname=self.resolved_hostname,
             )
@@ -1030,7 +1030,7 @@ class PostgreSql(AgentCheck):
             self.service_check(
                 self.SERVICE_CHECK_NAME,
                 AgentCheck.OK,
-                tags=self._get_service_check_tags(),
+                tags=tags,
                 hostname=self.resolved_hostname,
             )
         finally:
