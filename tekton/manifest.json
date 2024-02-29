@@ -51,6 +51,10 @@
     },
     "logs": {
       "source": "tekton"
+    },
+    "saved_views": {
+      "tekton_overview": "assets/saved_views/tekton_overview.json",
+      "tekton_errors": "assets/saved_views/tekton_errors.json"
     }
   },
   "author": {
