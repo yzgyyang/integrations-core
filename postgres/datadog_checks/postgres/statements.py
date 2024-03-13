@@ -26,6 +26,10 @@ try:
 except ImportError:
     from ..stubs import datadog_agent
 
+QUERY_COUNTS_QUERY = """
+SELECT queryid, calls from {pg_stat_statements_view}
+"""
+
 STATEMENTS_QUERY = """
 SELECT {cols}
   FROM {pg_stat_statements_view} as pg_stat_statements
@@ -35,6 +39,7 @@ SELECT {cols}
          ON pg_stat_statements.dbid = pg_database.oid
   WHERE query != '<insufficient privilege>'
   AND query NOT LIKE 'EXPLAIN %%'
+  AND queryids = ANY(ARRAY[{called_queryids}])
   {filters}
   {extra_clauses}
 """
@@ -140,6 +145,7 @@ class PostgresStatementMetrics(DBMAsyncJob):
         self.tags = None
         self._state = StatementMetrics()
         self._stat_column_cache = []
+        self._query_count_cache = {}
         self._track_io_timing_cache = None
         self._obfuscate_options = to_native_string(json.dumps(self._config.obfuscator_options))
         # full_statement_text_cache: limit the ingestion rate of full statement text events per query_signature
@@ -180,14 +186,35 @@ class PostgresStatementMetrics(DBMAsyncJob):
                 self._stat_column_cache = col_names
                 return col_names
 
+    def _check_called_queries(self):
+        with self._check._get_main_db() as conn:
+            with conn.cursor() as cursor:
+                called_queryids = []
+                query = QUERY_COUNTS_QUERY.format(pg_stat_statements_view=self._config.pg_stat_statements_view)
+                rows = self._execute_query(cursor, query, params=(self._config.dbname,))
+                for row in rows:
+                    queryid = row['queryid']
+                    calls = row['calls']
+                    if queryid in self._query_count_cache:
+                        diff = calls - self._query_count_cache[queryid]
+                        if diff > 0:
+                            called_queryids.append(queryid)
+                    else:
+                        called_queryids.append(queryid)
+
+                    self._query_count_cache[queryid] = calls
+
+                return called_queryids
+
     def run_job(self):
         # do not emit any dd.internal metrics for DBM specific check code
         self.tags = [t for t in self._tags if not t.startswith('dd.internal')]
         self._tags_no_db = [t for t in self.tags if not t.startswith('db:')]
-        self.collect_per_statement_metrics()
+        called_queryids = self._check_called_queries()
+        self.collect_per_statement_metrics(called_queryids)
 
     @tracked_method(agent_check_getter=agent_check_getter)
-    def collect_per_statement_metrics(self):
+    def collect_per_statement_metrics(self, called_queryids):
         # exclude the default "db" tag from statement metrics & FQT events because this data is collected from
         # all databases on the host. For metrics the "db" tag is added during ingestion based on which database
         # each query came from.
@@ -214,7 +241,13 @@ class PostgresStatementMetrics(DBMAsyncJob):
             return []
 
     @tracked_method(agent_check_getter=agent_check_getter, track_result_length=True)
-    def _load_pg_stat_statements(self):
+    def _load_pg_stat_statements(self, called_queryids):
+        # Idea: Cache a dictionary of query ids to query counts, i.e.:
+        #  { 12345: 10, 45668: 100 }
+        #
+        # Then we can compute which queries have recent calls by subtracting the counts and looking for non-zero numbers.
+        # We can then fetch only the queries that have calls since the last time we checked.
+
         try:
             available_columns = set(self._get_pg_stat_statements_columns())
             missing_columns = PG_STAT_STATEMENTS_REQUIRED_COLUMNS - available_columns
@@ -290,6 +323,7 @@ class PostgresStatementMetrics(DBMAsyncJob):
                             pg_stat_statements_view=self._config.pg_stat_statements_view,
                             filters=filters,
                             extra_clauses="",
+                            called_queryids=called_queryids.join(', ')
                         ),
                         params=params,
                     )
@@ -401,10 +435,10 @@ class PostgresStatementMetrics(DBMAsyncJob):
             self._log.warning("Failed to query for pg_stat_statements count: %s", e)
 
     @tracked_method(agent_check_getter=agent_check_getter, track_result_length=True)
-    def _collect_metrics_rows(self):
+    def _collect_metrics_rows(self, called_queryids):
         self._emit_pg_stat_statements_metrics()
         self._emit_pg_stat_statements_dealloc()
-        rows = self._load_pg_stat_statements()
+        rows = self._load_pg_stat_statements(called_queryids)
 
         rows = self._normalize_queries(rows)
         if not rows:
