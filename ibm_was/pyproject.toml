@@ -39,7 +39,8 @@ license = "BSD-3-Clause"
 
 [project.optional-dependencies]
 deps = [
-    "lxml==5.1.0",
+    "lxml==5.1.0"; platform_machine != 'arm64',
+    "lxml==4.9.2"; platform_machine == 'arm64',
 ]
 
 [project.urls]
