@@ -26,8 +26,10 @@ def stop(app: Application, *, intg_name: str, environment: str, ignore_state: bo
     from ddev.e2e.run import E2EEnvironmentRunner
     from ddev.utils.fs import temp_directory
 
+    env_data_storage = EnvDataStorage(app.data_dir)
+
     if intg_name == 'all':
-        integrations = EnvDataStorage(app.data_dir).get_integrations()
+        integrations = env_data_storage.get_integrations()
     else:
         integrations = [intg_name]
 
@@ -35,15 +37,15 @@ def stop(app: Application, *, intg_name: str, environment: str, ignore_state: bo
         if environment == 'all':
             environments = [
                 env
-                for env in EnvDataStorage(app.data_dir).get_environments(integration_name)
-                if EnvDataStorage(app.data_dir).get(integration_name, env).exists()
+                for env in env_data_storage.get_environments(integration_name)
+                if env_data_storage.get(integration_name, env).exists()
             ]
         else:
             environments = [environment]
 
         for env in environments:
             integration = app.repo.integrations.get(integration_name)
-            env_data = EnvDataStorage(app.data_dir).get(integration.name, env)
+            env_data = env_data_storage.get(integration.name, env)
             runner = E2EEnvironmentRunner(env, app.verbosity)
 
             if not env_data.exists():
